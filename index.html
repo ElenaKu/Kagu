@@ -141,15 +141,35 @@ h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;co
    <div class="row"><button id="hslApply" class="pri">Apply</button><button id="hslReset">Reset</button></div></div>
  </section>
  <section class="sp" data-s="4">
-  <h3>Export SVG</h3>
+  <h3>Export</h3>
+  <div class="card">
+   <div class="row"><span class="mut" style="min-width:56px">Format</span><input type="hidden" id="oFmt" value="svg"><div class="seg"><button class="sg on" data-for="oFmt" data-v="svg">SVG</button><button class="sg" data-for="oFmt" data-v="png">PNG</button><button class="sg" data-for="oFmt" data-v="jpeg">JPEG</button><button class="sg" data-for="oFmt" data-v="webp">WebP</button></div></div>
+   <div class="row"><span class="mut" style="min-width:56px">File name</span><input type="text" id="oName" value="line-art.svg" style="flex:1;min-width:0"></div>
+  </div>
+  <div id="rasterOpts" style="display:none">
+   <div class="card"><h3>Size</h3>
+    <div class="row"><input type="number" id="oW" min="1" max="12000" style="width:84px"><span>×</span><input type="number" id="oH" min="1" max="12000" style="width:84px"><span class="mut">px</span></div>
+    <div class="row"><button class="pz" data-k="1">1×</button><button class="pz" data-k="2">2×</button><button class="pz" data-k="4">4×</button><button class="pz" data-k="2500" title="Longest side 2500 px">2500 px</button><button class="pz" data-k="4000">4000 px</button></div>
+    <div id="rInfo" class="mut"></div>
+    <div class="row"><label><input type="checkbox" id="oDpi" checked> Write 300 DPI into the file</label></div>
+   </div>
+   <div class="card"><h3>Background</h3>
+    <input type="hidden" id="oBg" value="transp"><div class="seg"><button class="sg on" data-for="oBg" data-v="transp">Transparent</button><button class="sg" data-for="oBg" data-v="white">White</button><button class="sg" data-for="oBg" data-v="black">Black</button><button class="sg" data-for="oBg" data-v="custom">Colour</button></div>
+    <div class="row"><input type="color" id="oBgC" value="#f6efe3"><span id="bgNote" class="mut" style="font-size:11px"></span></div>
+    <div id="qRow"><div class="row sp2"><span>Quality</span><b id="oQV">92</b></div><input type="range" id="oQ" min="40" max="100" value="92"></div>
+   </div>
+  </div>
+  <div id="svgOpts">
   <div class="card">
    <div class="row"><label><input type="checkbox" id="oGroup" checked> Group by colour</label></div>
    <div class="row"><label><input type="checkbox" id="oCombine" checked> Combine neighbouring same-colour shapes</label></div>
    <div class="row"><label><input type="checkbox" id="oAdobe" checked> Illustrator-friendly (flat attributes, px size)</label></div>
    <div class="row"><label><input type="checkbox" id="oStock"> Stock-ready (flatten, no metadata, title)</label></div>
-   <div class="row"><span>Decimals</span><input type="hidden" id="oDec" value="2"><div class="seg"><button class="sg" data-for="oDec" data-v="0">0</button><button class="sg" data-for="oDec" data-v="1">1</button><button class="sg on" data-for="oDec" data-v="2">2</button><button class="sg" data-for="oDec" data-v="3">3</button></div><input type="text" id="oName" value="line-art.svg" style="flex:1;min-width:0"></div>
+   <div class="row"><span>Decimals</span><input type="hidden" id="oDec" value="2"><div class="seg"><button class="sg" data-for="oDec" data-v="0">0</button><button class="sg" data-for="oDec" data-v="1">1</button><button class="sg on" data-for="oDec" data-v="2">2</button><button class="sg" data-for="oDec" data-v="3">3</button></div></div>
   </div>
-  <div class="card"><h3>Checks</h3><div id="chk"></div><div class="kv"><span>Estimated size</span><b id="oSize">—</b></div></div>
+  <div class="card"><div class="kv"><span>Estimated SVG size</span><b id="oSize">—</b></div></div>
+  </div>
+  <div class="card"><h3>Checks</h3><div id="chk"></div></div>
   <div class="row"><button id="oDl" class="pri">Download SVG</button><button id="oCopy">Copy SVG</button></div>
   <textarea id="oTa" style="display:none;height:120px"></textarea>
  </section>
@@ -1060,6 +1080,7 @@ function refreshExport(){
   add(cols.size<=64,`${cols.size} colours${cols.size>64?' — consider limiting':''}`);
   $('chk').innerHTML=rows.join('');
   $('fSize').textContent=fmtKB(new Blob([svg]).size);
+  syncRaster();
 }
 for(const id of ['oGroup','oCombine','oAdobe','oStock','oDec'])$(id).onchange=schedExport;
 let DL=null;
@@ -1120,6 +1141,104 @@ document.querySelectorAll('.sg').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.sg[data-for="'+i.id+'"]').forEach(x=>x.classList.toggle('on',x===b));
   i.dispatchEvent(new Event('change'));
 });
+
+/* ---------- raster export (PNG / JPEG / WebP) ---------- */
+const MAXSIDE=12000;
+const fmtExt=f=>f==='jpeg'?'jpg':f;
+function rAspect(){return S.vb[2]/S.vb[3]}
+function setRW(w){w=clamp(Math.round(w)||1,1,MAXSIDE);let h=Math.round(w/rAspect());if(h>MAXSIDE){h=MAXSIDE;w=Math.round(h*rAspect())}$('oW').value=w;$('oH').value=Math.max(1,h);updRInfo()}
+function setRH(h){h=clamp(Math.round(h)||1,1,MAXSIDE);let w=Math.round(h*rAspect());if(w>MAXSIDE){w=MAXSIDE;h=Math.round(w/rAspect())}$('oH').value=h;$('oW').value=Math.max(1,w);updRInfo()}
+function updRInfo(){
+  const w=+$('oW').value,h=+$('oH').value;if(!w||!h)return;
+  const mp=w*h/1e6,cm=n=>(n/300*2.54).toFixed(1);
+  $('rInfo').textContent=`${mp.toFixed(1)} MP · ${cm(w)} × ${cm(h)} cm at 300 DPI`+(mp>100?' · very large, may fail':'');
+}
+function syncRaster(){
+  if(!S.loaded)return;
+  const key=S.vb.join();
+  if(S.rkey!==key){S.rkey=key;setRW(Math.min(S.vb[2],MAXSIDE))}
+}
+$('oW').oninput=()=>setRW(+$('oW').value);
+$('oH').oninput=()=>setRH(+$('oH').value);
+document.querySelectorAll('.pz').forEach(b=>b.onclick=()=>{
+  if(!S.loaded)return;const k=+b.dataset.k;
+  if(k<=4)setRW(S.vb[2]*k);else if(S.vb[2]>=S.vb[3])setRW(k);else setRH(k);
+});
+$('oQ').oninput=()=>$('oQV').textContent=$('oQ').value;
+function fmtUI(){
+  const f=$('oFmt').value,r=f!=='svg';
+  $('rasterOpts').style.display=r?'block':'none';
+  $('svgOpts').style.display=r?'none':'block';
+  $('oCopy').style.display=r?'none':'';
+  $('oDl').textContent='Download '+(f==='svg'?'SVG':f==='jpeg'?'JPEG':f.toUpperCase());
+  $('qRow').style.display=(f==='jpeg'||f==='webp')?'block':'none';
+  $('oName').value=($('oName').value.replace(/\.[a-z0-9]+$/i,'')||'line-art')+'.'+fmtExt(f);
+  bgUI();
+  if(r)syncRaster();
+}
+function bgUI(){
+  const f=$('oFmt').value,bg=$('oBg').value;
+  $('oBgC').style.display=bg==='custom'?'inline-block':'none';
+  $('bgNote').textContent=(f==='jpeg'&&bg==='transp')?'JPEG has no transparency: white is used':'';
+}
+$('oFmt').onchange=fmtUI;$('oBg').onchange=bgUI;
+function bgColour(f){
+  const b=$('oBg').value;
+  if(b==='white')return '#ffffff';if(b==='black')return '#000000';if(b==='custom')return $('oBgC').value;
+  return f==='jpeg'?'#ffffff':null;
+}
+function loadImg(svg){
+  return new Promise((res,rej)=>{
+    const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('The browser could not draw this SVG'));
+    im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  });
+}
+let crcT=null;
+function crc32(u){
+  if(!crcT){crcT=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;crcT[n]=c>>>0}}
+  let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=crcT[(c^u[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;
+}
+function addDpi(buf,fmt){
+  const u=new Uint8Array(buf);
+  if(fmt==='png'&&u.length>33&&u[1]===0x50){
+    const ppu=11811,ch=new Uint8Array(21),dv=new DataView(ch.buffer);
+    dv.setUint32(0,9);ch.set([0x70,0x48,0x59,0x73],4);dv.setUint32(8,ppu);dv.setUint32(12,ppu);ch[16]=1;
+    dv.setUint32(17,crc32(ch.subarray(4,17)));
+    const out=new Uint8Array(u.length+21);out.set(u.subarray(0,33));out.set(ch,33);out.set(u.subarray(33),54);return out;
+  }
+  if(fmt==='jpeg'&&u[2]===0xFF&&u[3]===0xE0&&u[6]===0x4A&&u[7]===0x46){u[13]=1;u[14]=300>>8;u[15]=300&255;u[16]=300>>8;u[17]=300&255}
+  return u;
+}
+async function renderRaster(){
+  const f=$('oFmt').value,w=+$('oW').value,h=+$('oH').value;
+  if(!(w>0&&h>0))throw new Error('Set a valid size');
+  const img=await loadImg(svgString(layer.innerHTML,w,h));
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');if(!x)throw new Error('Image is too large for this browser');
+  const bg=bgColour(f);if(bg){x.fillStyle=bg;x.fillRect(0,0,w,h)}
+  x.imageSmoothingQuality='high';x.drawImage(img,0,0,w,h);
+  const mime=f==='png'?'image/png':f==='webp'?'image/webp':'image/jpeg';
+  const blob=await new Promise(r=>c.toBlob(r,mime,+$('oQ').value/100));
+  if(!blob||blob.type!==mime)throw new Error('The browser could not create this image — try a smaller size');
+  if($('oDpi').checked&&(f==='png'||f==='jpeg'))return new Blob([addDpi(await blob.arrayBuffer(),f)],{type:mime});
+  return blob;
+}
+let dlBusy=false;
+$('oDl').onclick=async()=>{
+  if(!S.loaded||dlBusy)return;
+  const f=$('oFmt').value;let name=$('oName').value.trim()||'line-art';
+  name=name.replace(/\.[a-z0-9]+$/i,'')+'.'+fmtExt(f);
+  dlBusy=true;$('oDl').disabled=true;
+  try{
+    let data;
+    if(f==='svg')data=buildSVG(exOpts());
+    else{toast('Rendering '+f.toUpperCase()+'…');await new Promise(r=>setTimeout(r,30));data=await renderRaster()}
+    await DL.save({filename:name,data});toast('Saved '+name);
+  }catch(err){
+    toast(err&&err.code==='declined'?'Download cancelled':err&&err.code==='too_large'?'File is too large — reduce the size':'Export failed: '+((err&&err.message)||err));
+  }
+  dlBusy=false;$('oDl').disabled=false;
+};
 
 </script>
 </body></html>
