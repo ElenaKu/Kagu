@@ -1,0 +1,10 @@
+starlette
+uvicorn[standard]
+python-multipart
+lxml
+numpy
+scipy
+pillow
+# engine (lineart + flat2svg) additionally needs: opencv-python-headless, scikit-image
+opencv-python-headless
+scikit-image
