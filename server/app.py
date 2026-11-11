@@ -24,9 +24,12 @@ OPS = {
 
 
 def payload(p, extra=None):
+    pos, total = store.queue_info(p)
     d = {"id": p.id, "name": p.name, "kind": p.kind, "status": p.status, "message": p.message,
-         "progress": p.progress, "info": p.info}
+         "progress": p.progress, "info": p.info, "created": p.created, "finished": p.finished,
+         "queue": pos, "queue_total": total}
     if p.status == "done":
+        p.ensure()
         sc = p.scene
         d.update(vb=sc.vb, defs=sc.defs, body=sc.body(), stats=sc.stats(), warnings=sc.warnings,
                  palette=[{"hex": h, "area": a} for h, a in sc.palette()], undo=len(p.hist), redo=len(p.redo))
@@ -62,6 +65,35 @@ async def create_project(request: Request):
     return JSONResponse(payload(p))
 
 
+async def list_projects(request):
+    """Summaries for the project ids this browser remembers (no scene data, cheap to poll)."""
+    out = []
+    for pid in (request.query_params.get("ids") or "").split(",")[:50]:
+        p = store.PROJECTS.get(pid.strip())
+        if not p:
+            continue
+        pos, total = store.queue_info(p)
+        out.append({"id": p.id, "name": p.name, "kind": p.kind, "status": p.status, "message": p.message,
+                    "progress": p.progress, "created": p.created, "finished": p.finished, "queue": pos,
+                    "queue_total": total})
+    return JSONResponse({"projects": out})
+
+
+async def delete_project(request):
+    try:
+        store.remove(request.path_params["pid"])
+    except KeyError as e:
+        return err(e.args[0], 404)
+    return JSONResponse({"ok": True})
+
+
+async def cancel_project(request):
+    try:
+        return JSONResponse(payload(store.cancel(request.path_params["pid"])))
+    except KeyError as e:
+        return err(e.args[0], 404)
+
+
 def _project(request):
     return store.get(request.path_params["pid"])
 
@@ -88,6 +120,7 @@ async def operate(request: Request):
         return err(e.args[0], 404)
     if p.status != "done":
         return err("The project is not ready")
+    p.ensure()
     a = await request.json()
     op = a.get("op")
 
@@ -135,6 +168,7 @@ async def export(request: Request):
         return err(e.args[0], 404)
     if p.status != "done":
         return err("The project is not ready")
+    p.ensure()
     q = request.query_params
     fmt = (q.get("fmt") or "svg").lower()
     base = re.sub(r"[^\w.\-]+", "_", q.get("name") or Path(p.name).stem or "kagu")
@@ -164,7 +198,10 @@ routes = [
     Route("/", index),
     Route("/api/info", info),
     Route("/api/projects", create_project, methods=["POST"]),
+    Route("/api/projects", list_projects),
     Route("/api/projects/{pid}", get_project),
+    Route("/api/projects/{pid}", delete_project, methods=["DELETE"]),
+    Route("/api/projects/{pid}/cancel", cancel_project, methods=["POST"]),
     Route("/api/projects/{pid}/original", original),
     Route("/api/projects/{pid}/op", operate, methods=["POST"]),
     Route("/api/projects/{pid}/export", export),

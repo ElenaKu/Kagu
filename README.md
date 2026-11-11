@@ -2,6 +2,9 @@
 
 Flat graphics to SVG, then edit the result. Everything is computed on the server; the browser only shows it.
 
+- **Queue**: tracing jobs wait in a persistent queue (one at a time). Close the page and come back later: the page
+  remembers your projects ("My projects" on the first step), shows the queue position and progress, and the link
+  `/#<project id>` reopens a project from any device. Edits are saved on the server after every step.
 - **Trace**: upload a PNG/JPEG/WebP, the Line Art engine (`lineart` + `flat2svg` from the scripts repo) turns it into SVG
   in a background job with progress. SVG files are imported directly.
 - **Edit** (server side, with undo/redo/reset): delete shapes (remove, or fill with the neighbour colour), remove the
@@ -29,15 +32,19 @@ gcloud run deploy kagu --source . --region us-central1 --memory 8Gi --cpu 4 --ti
   --concurrency 8 --min-instances 1 --max-instances 1 --allow-unauthenticated
 ```
 
-Projects live in the memory of one instance, so keep `--max-instances 1` for now (see limits below).
+Projects are stored in `KAGU_DATA_DIR` (default `/tmp/kagu`). On Cloud Run that disk is temporary: to keep projects
+across restarts mount a Cloud Storage bucket (or a Filestore volume) and point `KAGU_DATA_DIR` at it. Keep
+`--max-instances 1` for now: the queue lives in one process.
 
 ## Settings (environment variables)
 
-`KAGU_ENGINE_DIR`, `KAGU_DATA_DIR` (default temp dir), `KAGU_MAX_UPLOAD_MB` (40), `KAGU_TRACE_WORKERS` (1).
+`KAGU_ENGINE_DIR`, `KAGU_DATA_DIR` (default temp dir), `KAGU_MAX_UPLOAD_MB` (40), `KAGU_TRACE_WORKERS` (1),
+`KAGU_KEEP_DAYS` (14: finished projects older than this are deleted).
 
 ## MVP limits
 
 - No accounts: anyone with the link can use the server. Add auth (Supabase) before sharing publicly.
-- Projects are kept in memory (last 30) and lost on restart; one instance only.
+- Anyone who has a project link can open and edit it (the id is the only key). Accounts will fix this.
+- One server process owns the queue; undo history is not kept across restarts (the edited scene is).
 - Tracing takes minutes for large line art (the engine upscales small images); it runs one job at a time.
 - Not yet ported from the first prototype: node simplification.

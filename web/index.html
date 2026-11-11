@@ -88,7 +88,8 @@ h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;co
    <div class="row" style="margin-top:8px"><span class="mut">Colours</span><input type="number" id="oCols" min="2" max="256" placeholder="auto" style="width:80px"><span class="mut" style="font-size:11px">(raster only)</span></div>
    <div id="engNote" class="warn"></div></div>
   <div class="row"><button id="startBtn" class="pri" disabled>Trace</button><button id="sample">Load sample SVG</button></div>
-  <div id="job" class="mut" style="margin-top:10px"></div>
+  <div id="job" class="mut" style="margin:10px 0"></div>
+  <div class="card"><h3>My projects</h3><div id="projList" class="mut">No projects yet</div><div class="mut" style="font-size:11px;margin-top:6px">Tracing can take minutes. Start it, close the page, and come back to this address: finished projects wait here.</div></div>
   <div id="info"></div><div id="warn"></div>
  </section>
  <section class="sp" data-s="1">
@@ -544,23 +545,79 @@ function setFile(f){
   if(/\.svg$/i.test(f.name)||f.type==='image/svg+xml')startJob();
 }
 async function startJob(){
-  if(!S.file||S.busy)return;
-  S.busy=true;$('startBtn').disabled=true;$('job').textContent='Uploading…';
+  if(!S.file||S.submitting)return;
+  S.submitting=true;$('startBtn').disabled=true;$('job').textContent='Uploading…';
   const fd=new FormData();fd.append('file',S.file);fd.append('style',$('oStyle').value);if($('oCols').value)fd.append('colors',$('oCols').value);
   try{
-    let d=await api('/api/projects',{method:'POST',body:fd});
-    S.pid=d.id;const t0=Date.now();
-    while(d.status==='queued'||d.status==='running'){
-      const pr=d.progress?` (${d.progress[0]}/${d.progress[1]})`:'';
-      $('job').textContent=(d.status==='queued'?'Waiting in the queue…':(d.message||'Tracing…')+pr)+'  '+Math.round((Date.now()-t0)/1000)+' s';
-      await new Promise(r=>setTimeout(r,1500));
-      d=await api('/api/projects/'+S.pid);
-    }
-    if(d.status==='error')throw new Error(d.message);
-    $('job').textContent='';render(d,true);showInfo(d);goStep(2);toast(`${d.stats.shapes.toLocaleString()} shapes ready`);
+    const d=await api('/api/projects',{method:'POST',body:fd});
+    rememberId(d.id);S.waitId=d.id;try{history.replaceState(null,'','#'+d.id)}catch(e){}
+    $('job').textContent='Added to the queue.';refreshList();
   }catch(e){$('job').innerHTML=`<span class="bad">${esc(e.message)}</span>`;toast(e.message)}
-  S.busy=false;$('startBtn').disabled=false;
+  S.submitting=false;$('startBtn').disabled=false;
 }
+/* ---------- my projects (browser remembers the ids; the server keeps the files) ---------- */
+const LSK='kagu.projects';
+function myIds(){try{return JSON.parse(localStorage.getItem(LSK)||'[]')}catch(e){return[]}}
+function saveIds(a){try{localStorage.setItem(LSK,JSON.stringify(a.slice(0,50)))}catch(e){}}
+function rememberId(id){saveIds([id].concat(myIds().filter(x=>x!==id)))}
+function forgetId(id){saveIds(myIds().filter(x=>x!==id))}
+function ago(t){const s=Math.max(0,Date.now()/1000-t);return s<90?'just now':s<5400?Math.round(s/60)+' min ago':s<129600?Math.round(s/3600)+' h ago':Math.round(s/86400)+' d ago'}
+function statusText(p){
+  if(p.status==='queued')return p.queue>1?`Waiting · ${p.queue-1} ahead`:'Waiting to start';
+  if(p.status==='running')return (p.message||'Tracing…')+(p.progress?` (${p.progress[0]}/${p.progress[1]})`:'')+(p.queue_total>1?` · ${p.queue_total-1} more waiting`:'');
+  return {done:'Ready',error:'Failed',cancelled:'Cancelled'}[p.status]||p.status;
+}
+let listT=0,seen={};
+async function refreshList(){
+  clearTimeout(listT);
+  const ids=myIds();
+  if(!ids.length){$('projList').textContent='No projects yet';return}
+  let list=[];
+  try{list=(await api('/api/projects?ids='+ids.join(','))).projects}catch(e){listT=setTimeout(refreshList,8000);return}
+  const known=new Set(list.map(p=>p.id));
+  saveIds(ids.filter(i=>known.has(i)||i===S.waitId));
+  list.sort((a,b)=>b.created-a.created);
+  $('projList').innerHTML=list.map(p=>{
+    const col=p.status==='done'?'ok':p.status==='error'?'bad':'mut';
+    return `<div class="prob" style="display:flex;gap:6px;align-items:center" data-id="${p.id}"><div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${esc(p.name)}</b><br><span class="${col}" style="font-size:11px">${esc(statusText(p))} · ${ago(p.created)}</span></div>`+
+      (p.status==='done'?`<button data-act="open">Open</button>`:'')+((p.status==='queued'||p.status==='running')?`<button data-act="cancel">Stop</button>`:'')+`<button data-act="del" title="Delete">×</button></div>`;
+  }).join('');
+  let pending=false;
+  for(const p of list){
+    const was=seen[p.id];seen[p.id]=p.status;
+    if(p.status==='queued'||p.status==='running')pending=true;
+    if(p.id===S.waitId){
+      $('job').textContent=statusText(p);
+      if(p.status==='done'){S.waitId=null;$('job').textContent='';if(!S.loaded||S.step===0)openProject(p.id);else toast(`"${p.name}" is ready: open it in My projects`);if(document.hidden)document.title='Kagu ✓ ready'}
+      else if(p.status==='error'||p.status==='cancelled'){S.waitId=null;$('job').innerHTML=`<span class="bad">${esc(statusText(p))}</span> ${esc(p.message||'')}`}
+    }else if(was&&(was==='queued'||was==='running')&&p.status==='done')toast(`"${p.name}" is ready`);
+  }
+  listT=setTimeout(refreshList,pending?3000:20000);
+}
+async function openProject(id){
+  try{
+    const d=await api('/api/projects/'+id);
+    if(d.status!=='done'){S.waitId=id;toast(statusText(d));refreshList();return}
+    S.pid=id;try{history.replaceState(null,'','#'+id)}catch(e){}
+    cancelPvUI();render(d,true);showInfo(d);goStep(2);
+  }catch(e){toast(e.message)}
+}
+$('projList').onclick=async e=>{
+  const b=e.target.closest('button[data-act]'),row=e.target.closest('[data-id]');if(!b||!row)return;
+  const id=row.dataset.id,act=b.dataset.act;
+  if(act==='open')openProject(id);
+  else if(act==='cancel'){try{await api('/api/projects/'+id+'/cancel',{method:'POST'})}catch(x){toast(x.message)}refreshList()}
+  else if(act==='del'){
+    if(b.dataset.arm!=='1'){b.dataset.arm='1';b.textContent='Delete?';setTimeout(()=>{b.dataset.arm='';b.textContent='×'},2500);return}
+    try{await api('/api/projects/'+id,{method:'DELETE'})}catch(x){}forgetId(id);if(S.pid===id)toast('Deleted. The open copy stays on screen until you reload');refreshList();
+  }
+};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){document.title='Kagu';refreshList()}});
+(async()=>{
+  const id=(location.hash||'').slice(1);
+  if(id&&/^[0-9a-f]{12}$/.test(id)){rememberId(id);S.waitId=id;await refreshList();const p=await api('/api/projects/'+id).catch(()=>null);if(p&&p.status==='done'){S.waitId=null;openProject(id)}}
+  else refreshList();
+})();
 function showInfo(d){
   const st=d.stats,i=d.info||{};
   $('info').innerHTML=`<div class="card"><h3>${esc(d.name)}</h3><div class="kv"><span>Artboard</span><b>${+d.vb[2].toFixed(1)} × ${+d.vb[3].toFixed(1)}</b></div><div class="kv"><span>Shapes</span><b>${st.shapes.toLocaleString()}</b></div><div class="kv"><span>Nodes</span><b>${st.nodes.toLocaleString()}</b></div><div class="kv"><span>Colours</span><b>${st.colours}</b></div></div>`;
