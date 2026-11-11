@@ -31,14 +31,14 @@ IDLE_UNLOAD = 20 * 60
 HISTORY = 40
 POOL = ThreadPoolExecutor(max_workers=int(os.environ.get("KAGU_TRACE_WORKERS", "1")))
 PROJECTS = {}
-_META = ("id", "name", "mime", "kind", "status", "message", "info", "created", "style", "colors", "finished")
+_META = ("id", "name", "mime", "kind", "status", "message", "info", "created", "style", "colors", "finished", "owner")
 
 
 class Project:
-    def __init__(self, name, orig_path, mime, kind, style="auto", colors=None, pid=None):
+    def __init__(self, name, orig_path, mime, kind, style="auto", colors=None, pid=None, owner=None):
         self.id = pid or uuid.uuid4().hex[:12]
         self.name, self.orig_path, self.mime, self.kind = name, orig_path, mime, kind
-        self.style, self.colors = style, colors
+        self.style, self.colors, self.owner = style, colors, owner
         self.status = "queued"         # queued | running | done | error | cancelled
         self.message = ""
         self.progress = None
@@ -126,6 +126,10 @@ class Project:
 
 
 # ---------- queue ----------
+def waiting_of(owner):
+    return sum(1 for q in PROJECTS.values() if q.owner == owner and q.status in ("queued", "running"))
+
+
 def queue_info(p):
     """(position, total): position 1 = running now, 2 = next, ... None when not waiting."""
     if p.status not in ("queued", "running"):
@@ -172,7 +176,7 @@ def _run(p):
     p.save_meta()
 
 
-def create(filename, data, style="auto", colors=None):
+def create(filename, data, style="auto", colors=None, owner=None):
     if len(data) > MAX_UPLOAD:
         raise ValueError(f"File is larger than {MAX_UPLOAD // 1048576} MB")
     head = data[:512].lstrip().lower()
@@ -181,7 +185,7 @@ def create(filename, data, style="auto", colors=None):
     if not is_svg and ext not in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"):
         raise ValueError("Upload an SVG, PNG, JPEG or WebP file")
     mime = "image/svg+xml" if is_svg else {".png": "image/png", ".webp": "image/webp"}.get(ext, "image/jpeg")
-    p = Project(filename, None, mime, "svg" if is_svg else "raster", style, colors)
+    p = Project(filename, None, mime, "svg" if is_svg else "raster", style, colors, owner=owner)
     p.dir.mkdir(parents=True, exist_ok=True)
     p.orig_path = str(p.dir / ("original" + ext))
     Path(p.orig_path).write_bytes(data)

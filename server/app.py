@@ -8,7 +8,7 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.routing import Route
 
-from . import engine, render, store
+from . import auth, engine, render, store
 
 WEB = Path(__file__).resolve().parent.parent / "web"
 OPS = {
@@ -38,6 +38,12 @@ def payload(p, extra=None):
     return d
 
 
+def me(request):
+    """Owner id of the caller (None when login is off). Raises auth.AuthError when login is on and missing."""
+    u = auth.user_of(request)
+    return u["id"] if u else None
+
+
 def err(msg, code=400):
     return JSONResponse({"error": str(msg)}, status_code=code)
 
@@ -46,12 +52,23 @@ async def index(request):
     return FileResponse(WEB / "index.html")
 
 
+async def config(request):
+    return JSONResponse({"auth": auth.ENABLED, "supabase_url": auth.URL, "anon_key": auth.ANON_KEY,
+                         "max_queued": auth.MAX_QUEUED_PER_USER})
+
+
 async def info(request):
     return JSONResponse({"engine": engine.available(), "engine_error": engine.error(), "styles": engine.styles(),
                          "max_upload_mb": store.MAX_UPLOAD // 1048576})
 
 
 async def create_project(request: Request):
+    try:
+        owner = me(request)
+    except auth.AuthError as e:
+        return err(e, 401)
+    if owner and store.waiting_of(owner) >= auth.MAX_QUEUED_PER_USER:
+        return err(f"You already have {auth.MAX_QUEUED_PER_USER} jobs waiting. Wait for one to finish or stop one.", 429)
     form = await request.form()
     f = form.get("file")
     if f is None or not hasattr(f, "read"):
@@ -59,7 +76,7 @@ async def create_project(request: Request):
     data = await f.read()
     cols = form.get("colors")
     try:
-        p = store.create(f.filename or "image", data, form.get("style") or "auto", int(cols) if cols else None)
+        p = store.create(f.filename or "image", data, form.get("style") or "auto", int(cols) if cols else None, owner)
     except ValueError as e:
         return err(e)
     return JSONResponse(payload(p))
@@ -68,8 +85,12 @@ async def create_project(request: Request):
 async def list_projects(request):
     """Summaries for the project ids this browser remembers (no scene data, cheap to poll)."""
     out = []
-    for pid in (request.query_params.get("ids") or "").split(",")[:50]:
-        p = store.PROJECTS.get(pid.strip())
+    owner = me(request)
+    if owner:
+        cands = [p for p in store.PROJECTS.values() if p.owner == owner]
+    else:
+        cands = [store.PROJECTS.get(i.strip()) for i in (request.query_params.get("ids") or "").split(",")[:50]]
+    for p in cands:
         if not p:
             continue
         pos, total = store.queue_info(p)
@@ -81,7 +102,7 @@ async def list_projects(request):
 
 async def delete_project(request):
     try:
-        store.remove(request.path_params["pid"])
+        store.remove(_project(request).id)
     except KeyError as e:
         return err(e.args[0], 404)
     return JSONResponse({"ok": True})
@@ -89,13 +110,17 @@ async def delete_project(request):
 
 async def cancel_project(request):
     try:
-        return JSONResponse(payload(store.cancel(request.path_params["pid"])))
+        return JSONResponse(payload(store.cancel(_project(request).id)))
     except KeyError as e:
         return err(e.args[0], 404)
 
 
 def _project(request):
-    return store.get(request.path_params["pid"])
+    owner = me(request)
+    p = store.get(request.path_params["pid"])
+    if owner and p.owner != owner:
+        raise KeyError("Project not found (it may have been deleted)")
+    return p
 
 
 async def get_project(request):
@@ -197,6 +222,7 @@ async def export(request: Request):
 routes = [
     Route("/", index),
     Route("/api/info", info),
+    Route("/api/config", config),
     Route("/api/projects", create_project, methods=["POST"]),
     Route("/api/projects", list_projects),
     Route("/api/projects/{pid}", get_project),
@@ -206,4 +232,8 @@ routes = [
     Route("/api/projects/{pid}/op", operate, methods=["POST"]),
     Route("/api/projects/{pid}/export", export),
 ]
-app = Starlette(routes=routes)
+async def on_auth_error(request, exc):
+    return err(exc, 401)
+
+
+app = Starlette(routes=routes, exception_handlers={auth.AuthError: on_auth_error})

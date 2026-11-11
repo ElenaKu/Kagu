@@ -74,6 +74,7 @@ h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;co
  <button class="tab" data-s="3"><i>4</i>Colours</button>
  <button class="tab" data-s="4"><i>5</i>Export</button>
  <div class="sp0"></div>
+ <span id="who" class="mut" style="font-size:12px;margin-right:6px"></span><button id="signout" style="display:none">Sign out</button>
  <button id="undo" title="Ctrl+Z" disabled>↶ Undo</button><button id="redo" title="Ctrl+Shift+Z" disabled>↷ Redo</button>
  <button id="reset" disabled>Reset all</button><button id="dl" class="pri" disabled>Download…</button>
 </header>
@@ -195,6 +196,13 @@ h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;co
 </div>
 </div>
 </div>
+<div id="login" style="display:none;position:fixed;inset:0;z-index:30;background:#17181cf2;align-items:center;justify-content:center"><div class="card" style="width:340px;padding:20px">
+ <div class="logo" style="font-size:18px;margin-bottom:6px"><b>Kagu</b> <span style="font-weight:400;color:#9a9ea9;font-size:12px">flat to SVG</span></div>
+ <p>Sign in to trace and edit your images. Your projects stay in your account.</p>
+ <input type="text" id="lEmail" placeholder="you@example.com" style="width:100%;margin-bottom:8px">
+ <div class="row"><button id="lMagic" class="pri" style="flex:1">Email me a sign-in link</button></div>
+ <div class="row"><button id="lGoogle" style="flex:1">Continue with Google</button></div>
+ <div id="lMsg" class="mut" style="font-size:12px;margin-top:6px"></div></div></div>
 <div id="toast"></div><div id="mount"></div>
 <script>
 'use strict';
@@ -471,6 +479,7 @@ function reindex(){S.els=[...layer.children];S.byId=new Map();for(const e of S.e
 
 /* ---------- api ---------- */
 async function api(url,opt){
+  opt=opt||{};if(S.token)opt.headers=Object.assign({},opt.headers,{Authorization:'Bearer '+S.token});
   let r;try{r=await fetch(url,opt)}catch(e){throw new Error('Cannot reach the server')}
   let d=null;try{d=await r.json()}catch(e){}
   if(!r.ok)throw new Error((d&&d.error)||('Server error '+r.status));
@@ -494,7 +503,8 @@ function render(d,fresh){
     for(const id of ['res','ovO','ovR'])$(id).setAttribute('viewBox',S.vb.join(' '));
     for(const id of ['stO','stR']){$(id).style.width=S.vb[2]+'px';$(id).style.height=S.vb[3]+'px'}
     const o=$('orig');o.removeAttribute('viewBox');
-    $('stO').firstElementChild.outerHTML=`<img id="orig" src="/api/projects/${d.id}/original" style="position:absolute;left:0;top:0;width:100%;height:100%;user-select:none;pointer-events:none" draggable="false">`;
+    $('stO').firstElementChild.outerHTML=`<img id="orig" style="position:absolute;left:0;top:0;width:100%;height:100%;user-select:none;pointer-events:none" draggable="false">`;
+    setOriginal(d.id);
     $('empty').style.display='none';
     S.name=(d.name||'kagu').replace(/\.[a-z0-9]+$/i,'');$('oName').value=S.name+'-kagu.'+fmtExt($('oFmt').value);
     setRV('result');setSplit(.5);
@@ -504,6 +514,11 @@ function render(d,fresh){
   for(const id of ['reset','dl'])$(id).disabled=false;
   updStats();drawOv();selUI();if(S.step===3)renderPalette();if(S.rv==='diff')updateDiff();
   if(fresh){syncRaster();requestAnimationFrame(fitView)}
+}
+async function setOriginal(id){
+  const im=$('orig');
+  if(!S.token){im.src=`/api/projects/${id}/original`;return}
+  try{const r=await fetch(`/api/projects/${id}/original`,{headers:{Authorization:'Bearer '+S.token}});im.src=URL.createObjectURL(await r.blob())}catch(e){}
 }
 function updStats(){
   if(!S.loaded)return;
@@ -571,11 +586,12 @@ let listT=0,seen={};
 async function refreshList(){
   clearTimeout(listT);
   const ids=myIds();
-  if(!ids.length){$('projList').textContent='No projects yet';return}
+  if(!S.auth&&!ids.length){$('projList').textContent='No projects yet';return}
   let list=[];
-  try{list=(await api('/api/projects?ids='+ids.join(','))).projects}catch(e){listT=setTimeout(refreshList,8000);return}
+  try{list=(await api(S.auth?'/api/projects':'/api/projects?ids='+ids.join(','))).projects}catch(e){listT=setTimeout(refreshList,8000);return}
   const known=new Set(list.map(p=>p.id));
-  saveIds(ids.filter(i=>known.has(i)||i===S.waitId));
+  if(!S.auth)saveIds(ids.filter(i=>known.has(i)||i===S.waitId));
+  if(!list.length)$('projList').textContent='No projects yet';
   list.sort((a,b)=>b.created-a.created);
   $('projList').innerHTML=list.map(p=>{
     const col=p.status==='done'?'ok':p.status==='error'?'bad':'mut';
@@ -613,10 +629,37 @@ $('projList').onclick=async e=>{
   }
 };
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){document.title='Kagu';refreshList()}});
-(async()=>{
+async function boot(){
   const id=(location.hash||'').slice(1);
-  if(id&&/^[0-9a-f]{12}$/.test(id)){rememberId(id);S.waitId=id;await refreshList();const p=await api('/api/projects/'+id).catch(()=>null);if(p&&p.status==='done'){S.waitId=null;openProject(id)}}
+  if(id&&/^[0-9a-f]{12}$/.test(id)){if(!S.auth)rememberId(id);S.waitId=id;await refreshList();const p=await api('/api/projects/'+id).catch(()=>null);if(p&&p.status==='done'){S.waitId=null;openProject(id)}}
   else refreshList();
+}
+/* ---------- sign-in (Supabase), only when the server has it configured ---------- */
+(async()=>{
+  let cfg={auth:false};
+  try{cfg=await api('/api/config')}catch(e){}
+  S.auth=!!cfg.auth;
+  if(!S.auth){boot();return}
+  await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';s.onload=res;s.onerror=()=>rej(new Error('Could not load the sign-in library'));document.head.appendChild(s)}).catch(e=>{$('lMsg').textContent=e.message});
+  if(!window.supabase){$('login').style.display='flex';return}
+  const sb=window.supabase.createClient(cfg.supabase_url,cfg.anon_key);
+  let started=false;
+  const apply=session=>{
+    S.token=session?session.access_token:null;
+    $('login').style.display=session?'none':'flex';
+    $('who').textContent=session?(session.user.email||''):'';$('signout').style.display=session?'':'none';
+    if(session&&!started){started=true;boot()}
+    if(!session){started=false;S.loaded=false}
+  };
+  const {data}=await sb.auth.getSession();apply(data.session);
+  sb.auth.onAuthStateChange((ev,session)=>apply(session));
+  $('lMagic').onclick=async()=>{
+    const email=$('lEmail').value.trim();if(!email){$('lMsg').textContent='Enter your email';return}
+    const {error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:location.origin+location.pathname+location.hash}});
+    $('lMsg').textContent=error?error.message:'Check your inbox and open the link.';
+  };
+  $('lGoogle').onclick=async()=>{const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname+location.hash}});if(error)$('lMsg').textContent=error.message};
+  $('signout').onclick=async()=>{await sb.auth.signOut();location.reload()};
 })();
 function showInfo(d){
   const st=d.stats,i=d.info||{};
@@ -819,7 +862,7 @@ $('oDl').onclick=async()=>{
   else{q.set('w',$('oW').value);q.set('h',$('oH').value);q.set('bg',$('oBg').value);q.set('bgc',$('oBgC').value);q.set('q',$('oQ').value);q.set('dpi',$('oDpi').checked?1:0)}
   dlBusy=true;$('oDl').disabled=true;toast('Rendering on the server…');
   try{
-    const r=await fetch(`/api/projects/${S.pid}/export?`+q);
+    const r=await fetch(`/api/projects/${S.pid}/export?`+q,S.token?{headers:{Authorization:'Bearer '+S.token}}:undefined);
     if(!r.ok){let m='Export failed';try{m=(await r.json()).error||m}catch(e){}throw new Error(m)}
     const blob=await r.blob(),a=document.createElement('a');
     a.href=URL.createObjectURL(blob);a.download=name+'.'+fmtExt(f);document.body.appendChild(a);a.click();a.remove();

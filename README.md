@@ -36,6 +36,19 @@ Projects are stored in `KAGU_DATA_DIR` (default `/tmp/kagu`). On Cloud Run that 
 across restarts mount a Cloud Storage bucket (or a Filestore volume) and point `KAGU_DATA_DIR` at it. Keep
 `--max-instances 1` for now: the queue lives in one process.
 
+## Sign-in (Supabase, optional)
+
+Without these variables the server is open (fine for local use). With them, every project belongs to a signed-in
+user and nobody else can open it.
+
+1. Create a Supabase project. Authentication -> Providers: keep Email (magic link) on; add Google if you want it.
+   Authentication -> URL Configuration: add your Kagu address to the redirect URLs.
+2. Set on the server: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (Project Settings -> API), and `SUPABASE_JWT_SECRET`
+   (Project Settings -> API -> JWT Secret, the legacy HS256 secret).
+3. Each user may have `KAGU_MAX_QUEUED_PER_USER` (3) jobs waiting at once.
+
+Not done yet: emails when a project is ready, payments, per-user quotas.
+
 ## Settings (environment variables)
 
 `KAGU_ENGINE_DIR`, `KAGU_DATA_DIR` (default temp dir), `KAGU_MAX_UPLOAD_MB` (40), `KAGU_TRACE_WORKERS` (1),
@@ -44,7 +57,7 @@ across restarts mount a Cloud Storage bucket (or a Filestore volume) and point `
 ## MVP limits
 
 - No accounts: anyone with the link can use the server. Add auth (Supabase) before sharing publicly.
-- Anyone who has a project link can open and edit it (the id is the only key). Accounts will fix this.
+- Without the Supabase variables anyone who has a project link can open and edit it.
 - One server process owns the queue; undo history is not kept across restarts (the edited scene is).
 - Tracing takes minutes for large line art (the engine upscales small images); it runs one job at a time.
 - Not yet ported from the first prototype: node simplification.
