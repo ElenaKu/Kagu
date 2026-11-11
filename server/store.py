@@ -20,7 +20,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import engine
+from . import engine, remote
 from .scene import Scene
 
 DATA = Path(os.environ.get("KAGU_DATA_DIR", Path(tempfile.gettempdir()) / "kagu"))
@@ -61,6 +61,7 @@ class Project:
         tmp = self.dir / "meta.json.tmp"
         tmp.write_text(json.dumps(d), encoding="utf-8")
         tmp.replace(self.dir / "meta.json")
+        remote.push(self.id, "meta.json", self.dir / "meta.json")
 
     def save_scene(self, base=False):
         def dump(obj, name):
@@ -68,6 +69,7 @@ class Project:
             with gzip.open(tmp, "wb", compresslevel=1) as f:
                 pickle.dump(obj, f, protocol=4)
             tmp.replace(self.dir / name)
+            remote.push(self.id, name, self.dir / name)
         if base:
             dump(self.base, "base.pkl.gz")
         dump(self.scene, "scene.pkl.gz")
@@ -189,6 +191,7 @@ def create(filename, data, style="auto", colors=None, owner=None):
     p.dir.mkdir(parents=True, exist_ok=True)
     p.orig_path = str(p.dir / ("original" + ext))
     Path(p.orig_path).write_bytes(data)
+    remote.push(p.id, Path(p.orig_path).name, p.orig_path)
     PROJECTS[p.id] = p
     p.save_meta()
     housekeeping()
@@ -211,6 +214,7 @@ def remove(pid):
         p.message = "Cancelled"
     PROJECTS.pop(pid, None)
     shutil.rmtree(p.dir, ignore_errors=True)
+    remote.drop(pid)
 
 
 def cancel(pid):
@@ -231,6 +235,7 @@ def housekeeping():
         if now - p.created > KEEP_DAYS * 86400 and p.status not in ("queued", "running"):
             PROJECTS.pop(p.id, None)
             shutil.rmtree(p.dir, ignore_errors=True)
+            remote.drop(p.id)
         elif now - p.touched > IDLE_UNLOAD:
             p.unload()
 
@@ -238,6 +243,7 @@ def housekeeping():
 def restore():
     """Reload projects from disk; unfinished jobs go back to the queue (oldest first)."""
     found = []
+    remote.pull(DATA)
     for d in DATA.iterdir():
         m = d / "meta.json"
         if not m.exists():

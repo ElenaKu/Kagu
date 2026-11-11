@@ -61,3 +61,7 @@ Not done yet: emails when a project is ready, payments, per-user quotas.
 - One server process owns the queue; undo history is not kept across restarts (the edited scene is).
 - Tracing takes minutes for large line art (the engine upscales small images); it runs one job at a time.
 - Not yet ported from the first prototype: node simplification.
+
+## Free hosting
+
+See `deploy/HUGGINGFACE.md` for the free setup (Hugging Face Space + Supabase Storage for persistence).
