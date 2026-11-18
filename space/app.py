@@ -29,8 +29,16 @@ def _fetch_engine():
     token = os.environ.get("ENGINE_TOKEN")
     if not token:
         raise RuntimeError("ENGINE_TOKEN secret is missing: the engine cannot be downloaded")
-    snapshot_download(os.environ.get("KAGU_ENGINE_REPO", "Ellenanet/kagu-engine"), token=token,
-                      local_dir=str(ENGINE), allow_patterns=["lineart/**", "flat2svg/**"])
+    repo = os.environ.get("KAGU_ENGINE_REPO", "Ellenanet/kagu-engine")
+    err = None
+    for kind in ("model", "space"):                   # the private engine repo may be a model repo or a Space
+        try:
+            snapshot_download(repo, repo_type=kind, token=token, local_dir=str(ENGINE),
+                              allow_patterns=["lineart/**", "flat2svg/**"])
+            return
+        except Exception as e:
+            err = e
+    raise RuntimeError(f"engine repo {repo} could not be downloaded: {err}")
 
 
 _fetch_engine()
