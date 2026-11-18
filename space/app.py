@@ -17,6 +17,23 @@ import spaces
 
 HERE = Path(__file__).resolve().parent
 ENGINE = HERE / "engine"
+
+
+def _fetch_engine():
+    """The engine code is not in this public Space: it is downloaded at start-up from a private Hugging Face repo
+    (KAGU_ENGINE_REPO, default Ellenanet/kagu-engine, with folders lineart/ and flat2svg/) using the Space secret
+    ENGINE_TOKEN (a read-only token). A local ./engine folder, if present, is used as it is."""
+    if (ENGINE / "lineart" / "lineart_assemble.py").exists():
+        return
+    from huggingface_hub import snapshot_download
+    token = os.environ.get("ENGINE_TOKEN")
+    if not token:
+        raise RuntimeError("ENGINE_TOKEN secret is missing: the engine cannot be downloaded")
+    snapshot_download(os.environ.get("KAGU_ENGINE_REPO", "Ellenanet/kagu-engine"), token=token,
+                      local_dir=str(ENGINE), allow_patterns=["lineart/**", "flat2svg/**"])
+
+
+_fetch_engine()
 sys.path.insert(0, str(ENGINE / "lineart"))
 
 
