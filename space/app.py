@@ -23,8 +23,8 @@ def _upscaler():
     """Path of the x4 ONNX upscale model, downloaded once into the Hugging Face cache."""
     try:
         from huggingface_hub import hf_hub_download
-        return hf_hub_download(os.environ.get("KAGU_UPSCALER_REPO", "qualcomm/Real-ESRGAN-x4plus"),
-                               os.environ.get("KAGU_UPSCALER_FILE", "Real-ESRGAN-x4plus.onnx"))
+        return hf_hub_download(os.environ.get("KAGU_UPSCALER_REPO", "SceneWorks/real-esrgan-onnx"),
+                               os.environ.get("KAGU_UPSCALER_FILE", "real_esrgan_x4.onnx"))
     except Exception as e:
         print("Upscale model not available, small pictures use Lanczos:", e)
         return ""

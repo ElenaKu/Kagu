@@ -7,7 +7,7 @@
 FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends librsvg2-bin && rm -rf /var/lib/apt/lists/*
 RUN useradd -m -u 1000 user
-ARG UPSCALER_URL=https://huggingface.co/qualcomm/Real-ESRGAN-x4plus/resolve/main/Real-ESRGAN-x4plus.onnx
+ARG UPSCALER_URL=https://huggingface.co/SceneWorks/real-esrgan-onnx/resolve/main/real_esrgan_x4.onnx
 ADD ${UPSCALER_URL} /models/upscaler-x4.onnx
 RUN chmod 644 /models/upscaler-x4.onnx
 WORKDIR /app
