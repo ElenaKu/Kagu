@@ -1,0 +1,10 @@
+gradio
+spaces
+huggingface_hub
+numpy
+scipy
+opencv-python-headless
+scikit-image
+numba
+onnxruntime
+lxml
