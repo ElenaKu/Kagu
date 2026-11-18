@@ -143,6 +143,7 @@ VIEWER_CSS = """
 .kv-label{position:absolute;top:6px;left:8px;z-index:2;font-size:12px;color:#555;background:#ffffffcc;
   padding:1px 6px;border-radius:4px}
 #k-hint p{font-size:12px;color:#999;margin:0}
+#k-about p{font-size:13px;color:#888;max-width:900px;margin:16px 0 0}
 .kv-busy{cursor:default;display:flex;align-items:center;justify-content:center}
 .kv-wait{color:#888;font-size:15px}
 .gradio-container{max-width:1400px !important;margin:0 auto !important}
@@ -152,6 +153,13 @@ VIEWER_CSS = """
 #k-bar>*{flex:0 0 auto !important;min-width:0 !important}
 #k-info{color:#777;font-size:13px;margin-right:auto}
 footer{display:none !important}
+"""
+
+SEO_HEAD = """
+<meta name="description" content="Kagu is a free online vectorizer: convert PNG and JPG illustrations to clean, editable SVG vector graphics. Automatic image tracing with layered, colour-grouped shapes, ready for Illustrator and Inkscape.">
+<meta name="keywords" content="vectorizer, image to SVG, PNG to SVG, JPG to SVG, raster to vector, vectorize image, image tracing, trace image, convert to vector, SVG converter, vector graphics, clipart vectorization, free vectorizer">
+<meta property="og:title" content="Kagu — free PNG to SVG vectorizer">
+<meta property="og:description" content="Convert PNG and JPG illustrations to clean, editable SVG. Automatic image tracing, no settings.">
 """
 
 VIEWER_JS = """
@@ -202,8 +210,8 @@ def _reset():
     return gr.update(value=None, visible=True), "", "", gr.update(value=None, visible=False), "", gr.update(visible=False)
 
 
-with gr.Blocks(title="Kagu") as demo:
-    gr.Markdown("# Kagu\nTurn an illustration into a clean, editable SVG.", elem_id="k-title")
+with gr.Blocks(title="Kagu — Free PNG to SVG Vectorizer, Image Tracing Online") as demo:
+    gr.Markdown("# Kagu — PNG to SVG vectorizer\nTurn an illustration into a clean, editable SVG.", elem_id="k-title")
     with gr.Row(elem_id="k-bar"):
         info = gr.Markdown(elem_id="k-info")
         download = gr.DownloadButton("Download SVG", variant="primary", visible=False, size="sm")
@@ -216,8 +224,15 @@ with gr.Blocks(title="Kagu") as demo:
         with gr.Column():
             right = gr.HTML()
     gr.Markdown("Wheel: zoom · drag: move · double-click: fit — both views move together.", elem_id="k-hint")
+    gr.Markdown(
+        "**Kagu** is a free online vectorizer. It converts raster images (PNG, JPG) into vector graphics (SVG) "
+        "by automatic image tracing: flat colour areas, outlines and details become clean shapes, grouped by colour "
+        "and layered, so the SVG is easy to edit in Adobe Illustrator, Inkscape, Affinity Designer or Figma. "
+        "Made for illustrations, clipart, line art and AI-generated pictures. Small pictures are upscaled x4 "
+        "before tracing for smoother curves.",
+        elem_id="k-about")
     outs = [image, left, right, download, info, new]
     image.upload(_start, [image], outs).then(trace, [image], outs, concurrency_limit=1, show_progress_on=[right])
     new.click(_reset, None, outs)
 
-demo.launch(css=VIEWER_CSS, head=VIEWER_JS)
+demo.launch(css=VIEWER_CSS, head=SEO_HEAD + VIEWER_JS)
