@@ -2,7 +2,8 @@
 
 Upload a picture, get an editable SVG. No settings: the style is chosen automatically.
 The Line Art engine lives in ./engine (lineart + flat2svg); everything runs on the CPU.
-Small pictures are enlarged by an x4 ONNX model (Real-ESRGAN x4plus) downloaded on the first start.
+Small pictures are enlarged by Real-ESRGAN x4plus on the ZeroGPU card (gpu_upscale.py);
+if the card is not available, the same model runs on the CPU through ONNX (slow).
 """
 import base64
 import os
@@ -36,16 +37,36 @@ os.environ.setdefault("LINEART_ONNX_UPSCALER", _upscaler())
 import lineart_assemble as la                         # noqa: E402  (needs the settings above)
 from lineart_layers import Params                     # noqa: E402
 
-@spaces.GPU
-def _gpu_probe():
-    """ZeroGPU needs at least one GPU function; tracing itself runs on the CPU and never calls this."""
-    return True
+LAST_UPSCALE = [""]                                   # which upscaler the last build used, for the info line
+
+try:                                                  # x4 upscale on the GPU; the engine calls it in place of ONNX
+    import gpu_upscale
+
+    def _gpu_enlarge(bgr, up):
+        try:
+            big = gpu_upscale.upscale_x4(bgr)
+            LAST_UPSCALE[0] = gpu_upscale.NAME
+        except Exception as e:                        # GPU quota used up, card busy...: the CPU path takes over
+            print("GPU upscale failed, using the CPU:", e)
+            LAST_UPSCALE[0] = "ONNX on the CPU"
+            return _cpu_enlarge(bgr, up)
+        if up != 4:
+            import cv2
+            h, w = bgr.shape[:2]
+            big = cv2.resize(big, (w * up, h * up), interpolation=cv2.INTER_AREA if up < 4 else cv2.INTER_LANCZOS4)
+        return big, ""
+
+    _cpu_enlarge = la.onnx_upscale
+    la.onnx_upscale = _gpu_enlarge
+except Exception as e:
+    print("GPU upscale not available, using ONNX on the CPU:", e)
 
 
 def trace(image_path, progress=gr.Progress()):
     if not image_path:
         raise gr.Error("Upload a picture first.")
     t0 = time.time()
+    LAST_UPSCALE[0] = ""
 
     def step(text, i, n):
         progress((i / n) if n else None, desc=text)
@@ -57,7 +78,7 @@ def trace(image_path, progress=gr.Progress()):
     up = res.get("upscale_info") or {}
     info = (f"Style: {res.get('style')}  ·  "
             f"{svg.count('<path')} paths  ·  {time.time() - t0:.0f} s"
-            + (f"  ·  enlarged: {up.get('method')}" if up.get("method") else ""))
+            + (f"  ·  enlarged: {LAST_UPSCALE[0] or up.get('method')}" if up.get("method") else ""))
     b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
     preview = (f'<div style="background:#fff;border-radius:8px;padding:8px">'
                f'<img src="data:image/svg+xml;base64,{b64}" style="width:100%;height:auto"></div>')
