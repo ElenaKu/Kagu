@@ -79,9 +79,11 @@ try:                                                  # x4 upscale on the GPU; t
             big = gpu_upscale.upscale_x4(bgr)
             LAST_UPSCALE[0] = gpu_upscale.NAME
         except Exception as e:                        # GPU quota used up, card busy...: the CPU path takes over
-            print("GPU upscale failed, using the CPU:", e)
-            LAST_UPSCALE[0] = "ONNX on the CPU"
-            return _cpu_enlarge(bgr, up)
+            # GPU quota used up or card busy: the heavy model on the CPU takes minutes, so the engine's fast
+            # Lanczos enlargement is used instead (returning None makes the engine fall back to it)
+            print("GPU upscale failed, using Lanczos:", e)
+            LAST_UPSCALE[0] = "Lanczos, GPU quota used up"
+            return None, "GPU quota used up"
         if up != 4:
             import cv2
             h, w = bgr.shape[:2]

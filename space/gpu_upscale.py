@@ -76,7 +76,7 @@ def _load():
 MODEL = _load()
 
 
-@spaces.GPU(duration=60)
+@spaces.GPU(duration=10)
 def upscale_x4(bgr, tile=512, pad=16):
     """BGR uint8 (h, w, 3) -> BGR uint8 (4h, 4w, 3)."""
     h, w = bgr.shape[:2]
