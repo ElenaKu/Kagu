@@ -16,8 +16,14 @@ A Space is its own git repository, so it gets a copy of Kagu plus the engine.
        git clone https://huggingface.co/spaces/<user>/<space> space
        cp -r server web requirements.txt Dockerfile space/
        cp deploy/space_readme.md space/README.md
-       mkdir space/engine && cp -r <scripts>/lineart <scripts>/flat2svg space/engine/
+       mkdir space/engine
+       git clone --depth 1 https://github.com/ElenaKu/lineart space/engine/lineart
+       git clone --depth 1 -b core-v2 https://github.com/ElenaKu/flat2svg space/engine/flat2svg
+       rm -rf space/engine/*/.git space/engine/lineart/test_images space/engine/lineart/bench_out
        cd space && git add -A && git commit -m "Kagu" && git push
+
+   The Docker build downloads the x4 upscale model (Real-ESRGAN x4plus, ONNX) by itself; small pictures are
+   enlarged with it on the CPU. The UI debug info says "ONNX" when it was used, "Lanczos" when it was not.
 
 5. For more speed switch the Space hardware to CPU Upgrade (8 vCPU, 32 GB, billed per hour) in its settings.
 

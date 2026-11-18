@@ -5,6 +5,8 @@ lxml
 numpy
 scipy
 pillow
-# engine (lineart + flat2svg) additionally needs: opencv-python-headless, scikit-image
+# engine (lineart + flat2svg) additionally needs these
 opencv-python-headless
 scikit-image
+numba
+onnxruntime
