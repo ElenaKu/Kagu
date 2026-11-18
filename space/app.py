@@ -94,6 +94,24 @@ except Exception as e:
     print("GPU upscale not available, using ONNX on the CPU:", e)
 
 
+CURRENT_RUN = [None]                    # the run being traced (one at a time, under WORK_LOCK)
+_engine_enlarge = la._enlarge
+
+
+def _enlarge_and_keep(bgr, alpha, trace, progress):
+    """The engine's enlarge step; the enlarged picture is also saved for the page (view and download)."""
+    out = _engine_enlarge(bgr, alpha, trace, progress)
+    run = CURRENT_RUN[0]
+    if run is not None and out[2] > 1:
+        import cv2
+        big = Path(run["path"]).with_name(Path(run["path"]).stem + "_x%d.png" % out[2])
+        cv2.imwrite(str(big), out[0])
+        run["big"], run["factor"] = str(big), out[2]
+    return out
+
+
+la._enlarge = _enlarge_and_keep
+
 MAX_MB = 10
 MAX_SIDE = 4000
 KEEP_RUNS = 30
@@ -116,7 +134,9 @@ def _put(run_id, run):
         RUNS[run_id] = run
         while len(RUNS) > KEEP_RUNS:
             _, old = RUNS.popitem(last=False)
-            Path(old["path"]).unlink(missing_ok=True)
+            for f in (old["path"], old.get("big")):
+                if f:
+                    Path(f).unlink(missing_ok=True)
 
 
 router = APIRouter()
@@ -164,17 +184,20 @@ def api_convert(run_id: str = Form(...)):
             run["stage"] = text
 
         run["stage"] = "Starting…"
+        CURRENT_RUN[0] = run
         try:
             res = la.assemble_file(run["path"], Params(), style="auto", progress=step)
         except Exception as e:
             run["stage"] = ""
             raise HTTPException(500, f"Tracing failed: {type(e).__name__}")
+        finally:
+            CURRENT_RUN[0] = None
     svg = res["svg"]
     up = res.get("upscale_info") or {}
     info = (f"{_colour_count(svg)} colours · {svg.count('<path')} shapes · {len(svg.encode('utf-8')) / 1024:.0f} KB · {time.time() - t0:.0f} s"
             + (f" · enlarged x{up.get('factor')} ({LAST_UPSCALE[0] or up.get('engine')})" if up.get("factor", 1) > 1 else ""))
     run.update(svg=svg, info=info, stage="")
-    return {"run_id": run_id, "info": info}
+    return {"run_id": run_id, "info": info, "factor": run.get("factor", 1) if run.get("big") else 1}
 
 
 def _colour_count(svg):
@@ -193,6 +216,18 @@ def api_status(run_id: str):
 @router.get("/api/src/{run_id}")
 def api_src(run_id: str):
     return FileResponse(_get(run_id)["path"], headers={"Cache-Control": "no-store"})
+
+
+@router.get("/api/big/{run_id}")
+def api_big(run_id: str, download: int = 0):
+    """The enlarged picture the SVG was traced from."""
+    run = _get(run_id)
+    if not run.get("big"):
+        raise HTTPException(404, "This picture was not enlarged.")
+    headers = {"Cache-Control": "no-store"}
+    if download:
+        headers["Content-Disposition"] = f'attachment; filename="{run["name"]}_x{run["factor"]}.png"'
+    return FileResponse(run["big"], media_type="image/png", headers=headers)
 
 
 @router.get("/api/svg/{run_id}")

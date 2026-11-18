@@ -48,6 +48,9 @@ h1{margin:12px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;fon
 .hint{font-size:13px;color:#a29d90;margin-left:auto}
 .about{max-width:900px;font-size:14px;line-height:1.6;color:#8f8a7e}
 .about h2{font-family:'Space Grotesk',sans-serif;font-size:18px;color:var(--muted);margin:28px 0 8px}
+.seg{position:absolute;top:8px;left:8px;z-index:3;display:flex;background:rgba(20,19,15,.85);border-radius:999px;padding:3px}
+.seg button{background:transparent;color:var(--muted);border:0;border-radius:999px;font-size:12px;font-weight:600;padding:5px 12px}
+.seg button.on{background:var(--gold);color:var(--ink)}
 .hidden{display:none!important}
 .err{color:#f2a39b;font-size:15px;margin-top:12px}
 @media (max-width:600px){h1{font-size:34px}.hint{display:none}}
@@ -88,11 +91,12 @@ h1{margin:12px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;fon
         <span class="hint">Scroll to zoom · drag to move · double-click to reset</span>
       </div>
       <div class="view">
-        <div class="pane" id="p1"><span class="tag">Original</span><img id="im1" alt="Original picture"></div>
+        <div class="pane" id="p1"><span class="tag" id="tag1">Original</span><div class="seg hidden" id="seg"><button type="button" class="on" data-v="src">Original</button><button type="button" data-v="big" id="segBig">Enlarged</button></div><img id="im1" alt="Original picture"></div>
         <div class="pane" id="p2"><span class="tag">SVG</span><img id="im2" alt="Vectorized SVG result" style="visibility:hidden"><div class="wait idle" id="wait"><div class="spin"></div><span id="waitText"></span></div></div>
       </div>
       <div class="row">
         <a id="dl" class="btn hidden" href="#">Download SVG</a>
+        <a id="dlBig" class="btn ghost hidden" href="#">Download enlarged PNG</a>
         <span id="info" class="note" style="margin:0"></span>
       </div>
     </div>
@@ -133,13 +137,14 @@ h1{margin:12px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;fon
     post('/api/upload', f).then(function (c) {
       runId = c.run_id;
       $('#result').classList.remove('hidden');
-      $('#dl').classList.add('hidden'); $('#info').textContent = '';
+      $('#dl').classList.add('hidden'); $('#dlBig').classList.add('hidden'); $('#info').textContent = '';
+      $('#seg').classList.add('hidden'); $('#tag1').classList.remove('hidden'); setLeft('src');
       $('#make').disabled = false; $('#make').classList.remove('hidden');
       var b = $('#im2'); b.style.visibility = 'hidden'; b.removeAttribute('src');
       waitState('Press “Make SVG” to vectorize.', false);
       V.w = c.width; V.h = c.height;
       [$('#im1'), $('#im2')].forEach(function (im) { im.style.width = V.w + 'px'; im.style.height = V.h + 'px'; });
-      var a = $('#im1');
+      var a = $('#im1'); a.dataset.v = 'src';
       a.onload = function () { $('#viewer').classList.remove('hidden'); fit(); $('#result').scrollIntoView({behavior: 'smooth'}); };
       a.src = '/api/src/' + runId + '?t=' + Date.now();
     }).catch(function (e) { $('#make').disabled = false; showError(e.message); });
@@ -171,6 +176,11 @@ h1{margin:12px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;fon
       $('#dl').href = '/api/svg/' + runId + '?download=1'; $('#dl').classList.remove('hidden');
       $('#make').classList.add('hidden');
       $('#info').textContent = r.info;
+      if (r.factor > 1) {
+        $('#segBig').textContent = 'Enlarged x' + r.factor;
+        $('#seg').classList.remove('hidden'); $('#tag1').classList.add('hidden');
+        $('#dlBig').href = '/api/big/' + runId + '?download=1'; $('#dlBig').classList.remove('hidden');
+      }
       busy = false;
     }).catch(function (e) {
       stopStatus(); waitState('Vectorizing failed.', false);
@@ -189,6 +199,19 @@ h1{margin:12px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;fon
     if (it) handleFile(it.getAsFile());
   });
   $('#make').onclick = convert;
+
+  // left view: the original or the enlarged picture (shown at the same size, so the zoom stays in sync)
+  function setLeft(v) {
+    document.querySelectorAll('#seg button').forEach(function (b) { b.classList.toggle('on', b.dataset.v === v); });
+    if (!runId) return;
+    var a = $('#im1'), src = (v === 'big' ? '/api/big/' : '/api/src/') + runId;
+    if (a.dataset.v === v) return;
+    a.dataset.v = v; a.onload = null; a.src = src + '?t=' + Date.now();
+  }
+  document.querySelectorAll('#seg button').forEach(function (b) {
+    b.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    b.onclick = function () { setLeft(b.dataset.v); };
+  });
 
   // ---- synchronized zoom and pan ------------------------------------------------------------------------------
   var V = { s: 1, tx: 0, ty: 0, w: 1, h: 1, fit: 1 };
