@@ -77,8 +77,6 @@ h1{margin:12px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;fon
   <section id="result" class="card hidden" aria-live="polite">
     <div class="row">
       <button id="make" class="btn" type="button">Make SVG</button>
-      <a id="dl" class="btn hidden" href="#">Download SVG</a>
-      <span id="info" class="note" style="margin:0"></span>
     </div>
     <div id="viewer" class="hidden" style="margin-top:16px">
       <div class="tools">
@@ -92,6 +90,10 @@ h1{margin:12px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;fon
       <div class="view">
         <div class="pane" id="p1"><span class="tag">Original</span><img id="im1" alt="Original picture"></div>
         <div class="pane" id="p2"><span class="tag">SVG</span><img id="im2" alt="Vectorized SVG result" style="visibility:hidden"><div class="wait idle" id="wait"><div class="spin"></div><span id="waitText"></span></div></div>
+      </div>
+      <div class="row">
+        <a id="dl" class="btn hidden" href="#">Download SVG</a>
+        <span id="info" class="note" style="margin:0"></span>
       </div>
     </div>
   </section>

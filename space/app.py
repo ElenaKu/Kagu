@@ -171,10 +171,17 @@ def api_convert(run_id: str = Form(...)):
             raise HTTPException(500, f"Tracing failed: {type(e).__name__}")
     svg = res["svg"]
     up = res.get("upscale_info") or {}
-    info = (f"{svg.count('<path')} shapes · {len(svg.encode('utf-8')) / 1024:.0f} KB · {time.time() - t0:.0f} s"
+    info = (f"{_colour_count(svg)} colours · {svg.count('<path')} shapes · {len(svg.encode('utf-8')) / 1024:.0f} KB · {time.time() - t0:.0f} s"
             + (f" · enlarged x{up.get('factor')} ({LAST_UPSCALE[0] or up.get('engine')})" if up.get("factor", 1) > 1 else ""))
     run.update(svg=svg, info=info, stage="")
     return {"run_id": run_id, "info": info}
+
+
+def _colour_count(svg):
+    """Distinct fill and stroke colours used in the SVG (attributes and inline styles)."""
+    import re
+    found = re.findall(r'(?:fill|stroke)\s*[:=]\s*["\']?\s*(#[0-9a-fA-F]{3,8}|rgb\([^)]*\))', svg)
+    return len({c.lower() for c in found})
 
 
 @router.get("/api/status/{run_id}")
