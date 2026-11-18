@@ -104,7 +104,7 @@ def trace(image_path, progress=gr.Progress()):
     info = (f"Style: {res.get('style')}  ·  "
             f"{svg.count('<path')} paths  ·  {time.time() - t0:.0f} s"
             + (f"  ·  enlarged: {LAST_UPSCALE[0] or up.get('method')}" if up.get("method") else ""))
-    return _viewer(image_path, svg), str(out), info
+    return _viewer(image_path, svg), gr.update(value=str(out), visible=True), info
 
 
 def _original_uri(path, max_side=2048):
@@ -185,9 +185,11 @@ with gr.Blocks(title="Kagu") as demo:
         image = gr.Image(type="filepath", label="Picture (PNG or JPG)", height=220)
         with gr.Column():
             run = gr.Button("Make SVG", variant="primary")
-            file = gr.File(label="Download SVG")
+            file = gr.File(label="Download SVG", visible=False)   # shown only when there is an SVG
             info = gr.Markdown()
     viewer = gr.HTML()
     run.click(trace, [image], [viewer, file, info], concurrency_limit=1)
+    # a new or removed picture clears the old result
+    image.change(lambda _: ("", gr.update(value=None, visible=False), ""), [image], [viewer, file, info])
 
 demo.launch(css=VIEWER_CSS, head=VIEWER_JS)
