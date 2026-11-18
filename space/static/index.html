@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kagu — free PNG to SVG vectorizer, image tracing online</title>
+<meta name="description" content="Kagu is a free online vectorizer: convert PNG and JPG illustrations to clean, editable SVG vector graphics. Automatic image tracing with layered, colour-grouped shapes, ready for Illustrator and Inkscape.">
+<meta name="keywords" content="vectorizer, image to SVG, PNG to SVG, JPG to SVG, raster to vector, vectorize image, image tracing, trace image, convert to vector, SVG converter, vector graphics, clipart vectorization, free vectorizer">
+<meta property="og:title" content="Kagu — free PNG to SVG vectorizer">
+<meta property="og:description" content="Convert PNG and JPG illustrations to clean, editable SVG. Automatic image tracing, no settings.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#14130f;--card:#1d1c17;--line:#34322b;--text:#f2efe8;--muted:#b5b0a3;--gold:#e6b85c;--ink:#14130f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.wrap{padding:0 24px 56px}
+.narrow{max-width:1180px;margin:0 auto}
+header{display:flex;align-items:center;gap:12px;padding:28px 0}
+.logo{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:22px;letter-spacing:-.01em}
+h1{margin:12px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:48px;line-height:1.06;letter-spacing:-.02em}
+.sub{margin:0 0 28px;max-width:620px;font-size:18px;line-height:1.5;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:24px;margin-bottom:20px}
+.drop{border:2px dashed #5a5546;border-radius:14px;padding:34px 16px;text-align:center;background:#17160f}
+.drop.over{border-color:var(--gold);background:#201d12}
+.drop p{margin:0 0 14px;font-size:16px;font-weight:600}
+.btn{background:var(--gold);color:var(--ink);border:0;border-radius:12px;padding:13px 22px;font-size:16px;font-weight:600;min-height:48px;text-decoration:none;display:inline-flex;align-items:center}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid #4a463b;font-weight:500}
+.btn[disabled]{opacity:.5;cursor:default}
+.note{font-size:13px;color:#a29d90;margin:12px 0 0}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.view{display:flex;flex-wrap:wrap;gap:16px;margin:16px 0}
+.pane{position:relative;flex:1 1 420px;height:calc(100vh - 190px);min-height:420px;background:#000;border-radius:12px;overflow:hidden;touch-action:none;cursor:grab;user-select:none}
+.pane:active{cursor:grabbing}
+.pane img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;display:block;-webkit-user-drag:none}
+.tag{position:absolute;top:10px;left:10px;z-index:2;background:rgba(20,19,15,.85);color:var(--text);font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;pointer-events:none}
+.wait{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--muted);font-size:15px;text-align:center;padding:20px;white-space:pre-line;background:linear-gradient(100deg,#0c0b09 30%,#1c1a14 50%,#0c0b09 70%);background-size:250% 100%;animation:shimmer 1.6s linear infinite}
+.wait.idle{animation:none;background:#0c0b09}
+.wait .spin{width:30px;height:30px;border:3px solid #3a372d;border-top-color:var(--gold);border-radius:50%;animation:spin .9s linear infinite}
+.wait.idle .spin{display:none}
+@keyframes shimmer{from{background-position:150% 0}to{background-position:-100% 0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:4px}
+.tools button{background:#26251f;color:var(--text);border:1px solid var(--line);border-radius:10px;min-width:44px;min-height:44px;padding:0 14px;font-size:16px}
+.tools .zl{font-size:14px;color:var(--muted);min-width:52px}
+.hint{font-size:13px;color:#a29d90;margin-left:auto}
+.about{max-width:900px;font-size:14px;line-height:1.6;color:#8f8a7e}
+.about h2{font-family:'Space Grotesk',sans-serif;font-size:18px;color:var(--muted);margin:28px 0 8px}
+.hidden{display:none!important}
+.err{color:#f2a39b;font-size:15px;margin-top:12px}
+@media (max-width:600px){h1{font-size:34px}.hint{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="narrow">
+  <header>
+    <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#e6b85c"/><path d="M9 22c2-7 7-11 14-11-3 2-4 5-4 8" stroke="#14130f" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="21" cy="9" r="2.2" fill="#14130f"/></svg>
+    <span class="logo">Kagu</span>
+  </header>
+  <h1>Illustrations<br>to clean, editable SVG.</h1>
+  <p class="sub">Free PNG and JPG to SVG vectorizer. Shapes come out layered and grouped by colour, ready to edit in Illustrator or Inkscape.</p>
+
+  <section class="card">
+    <div id="drop" class="drop">
+      <p>Drop a PNG or JPG here</p>
+      <button class="btn" id="pick" type="button">Choose file</button>
+      <input id="file" type="file" accept="image/png,image/jpeg" class="hidden">
+      <p class="note" style="margin-top:14px">Up to 10 MB and 4000 px. Small pictures are enlarged x4 first.</p>
+    </div>
+    <div id="error" class="err hidden" role="alert"></div>
+  </section>
+  </div>
+
+  <section id="result" class="card hidden" aria-live="polite">
+    <div class="row">
+      <button id="make" class="btn" type="button">Make SVG</button>
+      <a id="dl" class="btn hidden" href="#">Download SVG</a>
+      <span id="info" class="note" style="margin:0"></span>
+    </div>
+    <div id="viewer" class="hidden" style="margin-top:16px">
+      <div class="tools">
+        <button id="zout" type="button" aria-label="Zoom out">−</button>
+        <button id="zin" type="button" aria-label="Zoom in">+</button>
+        <button id="fit" type="button">Fit</button>
+        <button id="z100" type="button">100%</button>
+        <span id="zl" class="zl" aria-live="off">100%</span>
+        <span class="hint">Scroll to zoom · drag to move · double-click to reset</span>
+      </div>
+      <div class="view">
+        <div class="pane" id="p1"><span class="tag">Original</span><img id="im1" alt="Original picture"></div>
+        <div class="pane" id="p2"><span class="tag">SVG</span><img id="im2" alt="Vectorized SVG result" style="visibility:hidden"><div class="wait idle" id="wait"><div class="spin"></div><span id="waitText"></span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="narrow about">
+    <h2>What is Kagu?</h2>
+    <p>Kagu is a free online vectorizer. It converts raster images (PNG, JPG) into vector graphics (SVG) by automatic
+    image tracing: flat colour areas, outlines and details become clean shapes, grouped by colour and layered, so the
+    SVG is easy to recolour and edit in Adobe Illustrator, Inkscape, Affinity Designer or Figma. It is made for
+    illustrations, clipart, line art and AI-generated pictures. Small pictures are upscaled x4 with Real-ESRGAN before
+    tracing for smoother curves.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var runId = null, busy = false;
+
+  function post(url, f) {
+    return fetch(url, { method: 'POST', body: f }).then(function (r) {
+      if (r.ok) return r.json();
+      return r.json().catch(function () { return {}; }).then(function (j) { throw new Error(j.detail || ('Error ' + r.status)); });
+    });
+  }
+  function showError(m) { var e = $('#error'); e.textContent = m || ''; e.classList.toggle('hidden', !m); }
+  function waitState(text, spinning) {
+    var w = $('#wait'); w.classList.remove('hidden'); w.classList.toggle('idle', !spinning); $('#waitText').textContent = text;
+  }
+
+  // ---- upload: the picture is shown at once, tracing starts with "Make SVG" --------------------------------
+  function handleFile(file) {
+    if (!file || busy) return;
+    showError('');
+    var f = new FormData(); f.append('file', file);
+    $('#make').disabled = true;
+    post('/api/upload', f).then(function (c) {
+      runId = c.run_id;
+      $('#result').classList.remove('hidden');
+      $('#dl').classList.add('hidden'); $('#info').textContent = '';
+      $('#make').disabled = false; $('#make').classList.remove('hidden');
+      var b = $('#im2'); b.style.visibility = 'hidden'; b.removeAttribute('src');
+      waitState('Press “Make SVG” to vectorize.', false);
+      V.w = c.width; V.h = c.height;
+      [$('#im1'), $('#im2')].forEach(function (im) { im.style.width = V.w + 'px'; im.style.height = V.h + 'px'; });
+      var a = $('#im1');
+      a.onload = function () { $('#viewer').classList.remove('hidden'); fit(); $('#result').scrollIntoView({behavior: 'smooth'}); };
+      a.src = '/api/src/' + runId + '?t=' + Date.now();
+    }).catch(function (e) { $('#make').disabled = false; showError(e.message); });
+  }
+
+  var timer = null;
+  function startStatus() {
+    var t0 = Date.now(), stage = 'Starting…';
+    function tick() { waitState(stage + '\n' + Math.floor((Date.now() - t0) / 1000) + ' s\nYou can zoom into the original meanwhile.', true); }
+    tick();
+    timer = setInterval(function () {
+      tick();
+      fetch('/api/status/' + runId).then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (s) { if (s && s.stage) stage = s.stage; }).catch(function () {});
+    }, 1000);
+  }
+  function stopStatus() { if (timer) { clearInterval(timer); timer = null; } }
+
+  function convert() {
+    if (!runId || busy) return;
+    busy = true; showError(''); $('#make').disabled = true;
+    startStatus();
+    var f = new FormData(); f.append('run_id', runId);
+    post('/api/convert', f).then(function (r) {
+      stopStatus();
+      var b = $('#im2');
+      b.onload = function () { b.style.visibility = 'visible'; $('#wait').classList.add('hidden'); apply(); };
+      b.src = '/api/svg/' + runId + '?t=' + Date.now();
+      $('#dl').href = '/api/svg/' + runId + '?download=1'; $('#dl').classList.remove('hidden');
+      $('#make').classList.add('hidden');
+      $('#info').textContent = r.info;
+      busy = false;
+    }).catch(function (e) {
+      stopStatus(); waitState('Vectorizing failed.', false);
+      busy = false; $('#make').disabled = false; showError(e.message);
+    });
+  }
+
+  var drop = $('#drop'), fileInput = $('#file');
+  $('#pick').onclick = function () { fileInput.click(); };
+  fileInput.onchange = function () { handleFile(fileInput.files[0]); fileInput.value = ''; };
+  ['dragenter', 'dragover'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { handleFile(e.dataTransfer.files[0]); });
+  document.addEventListener('paste', function (e) {
+    var it = Array.from((e.clipboardData || {}).items || []).find(function (i) { return i.type.indexOf('image') === 0; });
+    if (it) handleFile(it.getAsFile());
+  });
+  $('#make').onclick = convert;
+
+  // ---- synchronized zoom and pan ------------------------------------------------------------------------------
+  var V = { s: 1, tx: 0, ty: 0, w: 1, h: 1, fit: 1 };
+  var panes = [$('#p1'), $('#p2')], imgs = [$('#im1'), $('#im2')];
+  function apply() {
+    imgs.forEach(function (im) { im.style.transform = 'translate(' + V.tx + 'px,' + V.ty + 'px) scale(' + V.s + ')'; });
+    imgs[0].style.imageRendering = V.s > 1.5 ? 'pixelated' : 'auto';
+    $('#zl').textContent = Math.round(V.s * 100) + '%';
+  }
+  function fit() {
+    var r = panes[0].getBoundingClientRect();
+    V.fit = Math.min(r.width / V.w, r.height / V.h);
+    V.s = V.fit; V.tx = (r.width - V.w * V.s) / 2; V.ty = (r.height - V.h * V.s) / 2; apply();
+  }
+  function zoomAt(cx, cy, f) {
+    var s2 = Math.min(Math.max(V.s * f, V.fit * 0.5), 64), k = s2 / V.s;
+    V.tx = cx - (cx - V.tx) * k; V.ty = cy - (cy - V.ty) * k; V.s = s2; apply();
+  }
+  function zoomCenter(f) { var r = panes[0].getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, f); }
+  $('#zin').onclick = function () { zoomCenter(1.5); };
+  $('#zout').onclick = function () { zoomCenter(1 / 1.5); };
+  $('#fit').onclick = fit;
+  $('#z100').onclick = function () { var r = panes[0].getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, 1 / V.s); };
+  window.addEventListener('resize', function () { if (!$('#viewer').classList.contains('hidden')) fit(); });
+
+  panes.forEach(function (pane) {
+    var ptrs = new Map(), lastDist = 0;
+    pane.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var r = pane.getBoundingClientRect();
+      zoomAt(e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015));
+    }, { passive: false });
+    pane.addEventListener('pointerdown', function (e) {
+      pane.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); lastDist = 0;
+    });
+    pane.addEventListener('pointermove', function (e) {
+      var p = ptrs.get(e.pointerId);
+      if (!p) return;
+      if (ptrs.size === 1) {
+        V.tx += e.clientX - p.x; V.ty += e.clientY - p.y; apply();
+      } else if (ptrs.size === 2) {
+        p.x = e.clientX; p.y = e.clientY;
+        var pts = Array.from(ptrs.values()), d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        var r = pane.getBoundingClientRect();
+        if (lastDist) zoomAt((pts[0].x + pts[1].x) / 2 - r.left, (pts[0].y + pts[1].y) / 2 - r.top, d / lastDist);
+        lastDist = d;
+      }
+      p.x = e.clientX; p.y = e.clientY;
+    });
+    function up(e) { ptrs.delete(e.pointerId); lastDist = 0; }
+    pane.addEventListener('pointerup', up);
+    pane.addEventListener('pointercancel', up);
+    pane.addEventListener('dblclick', fit);
+  });
+})();
+</script>
+</body>
+</html>
