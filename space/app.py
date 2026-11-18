@@ -104,22 +104,90 @@ def trace(image_path, progress=gr.Progress()):
     info = (f"Style: {res.get('style')}  ·  "
             f"{svg.count('<path')} paths  ·  {time.time() - t0:.0f} s"
             + (f"  ·  enlarged: {LAST_UPSCALE[0] or up.get('method')}" if up.get("method") else ""))
-    b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
-    preview = (f'<div style="background:#fff;border-radius:8px;padding:8px">'
-               f'<img src="data:image/svg+xml;base64,{b64}" style="width:100%;height:auto"></div>')
-    return preview, str(out), info
+    return _viewer(image_path, svg), str(out), info
+
+
+def _original_uri(path, max_side=2048):
+    """The uploaded picture as a PNG data URI for the left view (reduced so the page stays light)."""
+    import cv2
+    img = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    h, w = img.shape[:2]
+    k = max_side / max(h, w)
+    if k < 1:
+        img = cv2.resize(img, (round(w * k), round(h * k)), interpolation=cv2.INTER_AREA)
+    ok, buf = cv2.imencode(".png", img)
+    return "data:image/png;base64," + base64.b64encode(buf.tobytes()).decode("ascii")
+
+
+def _viewer(image_path, svg):
+    """Original on the left, SVG on the right; zoom and pan always move both views together (script in VIEWER_JS)."""
+    svg_uri = "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    pane = ('<div class="kv-pane"><div class="kv-label">{label}</div>'
+            '<div class="kv-stage"><img src="{src}" draggable="false"></div></div>')
+    return ('<div class="kv-wrap">' + pane.format(label="Original", src=_original_uri(image_path))
+            + pane.format(label="SVG", src=svg_uri)
+            + '</div><div class="kv-hint">Wheel: zoom · drag: move · double-click: fit</div>')
+
+
+VIEWER_CSS = """
+.kv-wrap{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (max-width:700px){.kv-wrap{grid-template-columns:1fr}}
+.kv-pane{position:relative;height:70vh;overflow:hidden;border-radius:8px;background:#fff;cursor:grab;
+  touch-action:none;border:1px solid #e5e7eb}
+.kv-pane:active{cursor:grabbing}
+.kv-stage{position:absolute;inset:0;transform-origin:0 0}
+.kv-stage img{width:100%;height:100%;object-fit:contain;user-select:none;pointer-events:none}
+.kv-label{position:absolute;top:6px;left:8px;z-index:2;font-size:12px;color:#555;background:#ffffffcc;
+  padding:1px 6px;border-radius:4px}
+.kv-hint{font-size:12px;color:#888;margin-top:4px}
+"""
+
+VIEWER_JS = """
+<script>
+(() => {
+  // One view state for every .kv-pane: zoom (k) and offset (x, y) in pane pixels.
+  const v = {k: 1, x: 0, y: 0};
+  let drag = null;
+  const apply = () => document.querySelectorAll('.kv-stage').forEach(s =>
+    s.style.transform = `translate(${v.x}px,${v.y}px) scale(${v.k})`);
+  const fit = () => { v.k = 1; v.x = 0; v.y = 0; apply(); };
+  const paneOf = e => e.target.closest && e.target.closest('.kv-pane');
+  document.addEventListener('wheel', e => {
+    const p = paneOf(e); if (!p) return;
+    e.preventDefault();
+    const r = p.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    const k = Math.min(64, Math.max(1, v.k * Math.exp(-e.deltaY * 0.0015)));
+    v.x = mx - (mx - v.x) * k / v.k; v.y = my - (my - v.y) * k / v.k; v.k = k;
+    if (k === 1) { v.x = 0; v.y = 0; }
+    apply();
+  }, {passive: false});
+  document.addEventListener('pointerdown', e => {
+    const p = paneOf(e); if (!p) return;
+    drag = {x: e.clientX - v.x, y: e.clientY - v.y}; p.setPointerCapture(e.pointerId);
+  });
+  document.addEventListener('pointermove', e => {
+    if (!drag) return; v.x = e.clientX - drag.x; v.y = e.clientY - drag.y; apply();
+  });
+  document.addEventListener('pointerup', () => { drag = null; });
+  document.addEventListener('dblclick', e => { if (paneOf(e)) fit(); });
+  // a new result starts fitted
+  new MutationObserver(() => { if (document.querySelector('.kv-stage:not([data-kv])')) {
+    document.querySelectorAll('.kv-stage').forEach(s => s.dataset.kv = 1); fit(); } })
+    .observe(document.documentElement, {childList: true, subtree: true});
+})();
+</script>
+"""
 
 
 with gr.Blocks(title="Kagu") as demo:
     gr.Markdown("# Kagu\nTurn an illustration into a clean, editable SVG.")
     with gr.Row():
+        image = gr.Image(type="filepath", label="Picture (PNG or JPG)", height=220)
         with gr.Column():
-            image = gr.Image(type="filepath", label="Picture (PNG or JPG)")
             run = gr.Button("Make SVG", variant="primary")
-        with gr.Column():
-            preview = gr.HTML(label="Result")
             file = gr.File(label="Download SVG")
             info = gr.Markdown()
-    run.click(trace, [image], [preview, file, info], concurrency_limit=1)
+    viewer = gr.HTML()
+    run.click(trace, [image], [viewer, file, info], concurrency_limit=1)
 
-demo.launch()
+demo.launch(css=VIEWER_CSS, head=VIEWER_JS)
