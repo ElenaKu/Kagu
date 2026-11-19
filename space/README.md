@@ -1,12 +1,13 @@
 ---
-title: Kagu — PNG to SVG Vectorizer
+title: Kagu PNG to SVG Vectorizer
 emoji: 🦜
-colorFrom: blue
+colorFrom: yellow
 colorTo: gray
 sdk: gradio
+sdk_version: "6.32.0"
 app_file: app.py
 pinned: false
-short_description: Free PNG/JPG to SVG vectorizer — automatic image tracing
+short_description: Free PNG and JPG to SVG vectorizer, image tracing
 tags:
   - vectorizer
   - vectorization
@@ -16,8 +17,6 @@ tags:
   - image-tracing
   - raster-to-vector
   - vector-graphics
-  - clipart
-  - upscaling
 ---
 
 # Kagu — free PNG to SVG vectorizer
