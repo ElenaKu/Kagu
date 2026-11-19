@@ -4,7 +4,8 @@ backend in front of a minimal Gradio app, the same layout as the flat2svg Space.
 Flow: the page uploads a PNG/JPG to /api/upload and shows it at once; "Make SVG" calls /api/convert; while it runs
 the page polls /api/status for the current stage; the result is shown beside the source with synced zoom and pan.
 The engine code is not in this public Space: it is downloaded at start-up from a private repo (ENGINE_TOKEN).
-Small pictures are enlarged by Real-ESRGAN x4plus on the ZeroGPU card (gpu_upscale.py), ONNX on the CPU as fallback.
+Small pictures are enlarged on the ZeroGPU card with the digital-art-4x model (gpu_upscale.py); without GPU quota
+the engine uses Lanczos.
 """
 import threading
 import uuid

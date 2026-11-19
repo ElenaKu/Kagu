@@ -1,19 +1,18 @@
-"""x4 upscale on the ZeroGPU card: Real-ESRGAN x4plus (RRDBNet, the original weights) in PyTorch.
+"""x4 upscale on the ZeroGPU card: the same model as Upscayl's "digital-art-4x" (Real-ESRGAN x4plus anime 6B).
 
-The model is the same as xinntao/Real-ESRGAN `RealESRGAN_x4plus.pth` (basicsr RRDBNet: 64 features, 23 blocks,
-growth 32). Weights come from the Hugging Face repo nateraw/real-esrgan. Only the upscale runs on the GPU; tracing
-stays on the CPU. Pictures are processed in overlapping tiles so very large inputs fit into the card's memory.
+The weights (digital_art_4x.npz, next to this file) were converted 1:1 from Upscayl's ncnn files
+digital-art-4x.param / .bin: basicsr RRDBNet with 64 features, 6 blocks, growth 32. Only the upscale runs on the GPU;
+tracing stays on the CPU. Pictures are processed in overlapping tiles so very large inputs fit into the card's memory.
 """
 import numpy as np
 import spaces
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from huggingface_hub import hf_hub_download
+from pathlib import Path
 
-WEIGHTS_REPO = "nateraw/real-esrgan"
-WEIGHTS_FILE = "RealESRGAN_x4plus.pth"
-NAME = "Real-ESRGAN x4plus (GPU)"
+WEIGHTS = Path(__file__).resolve().parent / "digital_art_4x.npz"
+NAME = "digital-art-4x (GPU)"
 
 
 class _RDB(nn.Module):
@@ -65,9 +64,9 @@ class RRDBNet(nn.Module):
 
 
 def _load():
-    state = torch.load(hf_hub_download(WEIGHTS_REPO, WEIGHTS_FILE), map_location="cpu")
-    state = state.get("params_ema", state.get("params", state))
-    net = RRDBNet()
+    with np.load(WEIGHTS) as npz:
+        state = {k: torch.from_numpy(npz[k].astype(np.float32)) for k in npz.files}
+    net = RRDBNet(nb=6)
     net.load_state_dict(state, strict=True)
     net.eval()
     return net.to("cuda")              # ZeroGPU: moved to the card at start-up, attached when a GPU call runs
