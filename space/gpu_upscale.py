@@ -92,3 +92,31 @@ def upscale_x4(bgr, tile=512, pad=16):
                                                               (x - x0) * 4:(tx1 - x0) * 4]
     img = (out[0].clamp(0, 1).mul(255).round().byte().permute(1, 2, 0).cpu().numpy())[:, :, ::-1]
     return np.ascontiguousarray(img)
+
+
+_CPU_MODEL = []
+
+
+def upscale_x4_cpu(bgr, tile=256, pad=16):
+    """The same model on the CPU, used when the GPU quota is used up (slower: minutes instead of seconds)."""
+    if not _CPU_MODEL:
+        with np.load(WEIGHTS) as npz:
+            state = {k: torch.from_numpy(npz[k].astype(np.float32)) for k in npz.files}
+        net = RRDBNet(nb=6)
+        net.load_state_dict(state, strict=True)
+        _CPU_MODEL.append(net.eval())
+    model = _CPU_MODEL[0]
+    h, w = bgr.shape[:2]
+    rgb = torch.from_numpy(np.ascontiguousarray(bgr[:, :, ::-1])).permute(2, 0, 1).float().div(255)[None]
+    out = torch.empty((1, 3, h * 4, w * 4), dtype=torch.float32)
+    with torch.inference_mode():
+        for y in range(0, h, tile):
+            for x in range(0, w, tile):
+                y0, x0 = max(y - pad, 0), max(x - pad, 0)
+                y1, x1 = min(y + tile + pad, h), min(x + tile + pad, w)
+                res = model(rgb[:, :, y0:y1, x0:x1])
+                ty1, tx1 = min(y + tile, h), min(x + tile, w)
+                out[:, :, y * 4:ty1 * 4, x * 4:tx1 * 4] = res[:, :, (y - y0) * 4:(ty1 - y0) * 4,
+                                                              (x - x0) * 4:(tx1 - x0) * 4]
+    img = (out[0].clamp(0, 1).mul(255).round().byte().permute(1, 2, 0).numpy())[:, :, ::-1]
+    return np.ascontiguousarray(img)

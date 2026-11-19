@@ -36,7 +36,7 @@ h1{margin:12px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;fon
 .pane:active{cursor:grabbing}
 .pane img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;display:block;-webkit-user-drag:none}
 .tag{position:absolute;top:10px;left:10px;z-index:2;background:rgba(20,19,15,.85);color:var(--text);font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;pointer-events:none}
-.wait{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--muted);font-size:15px;text-align:center;padding:20px;white-space:pre-line;background:linear-gradient(100deg,#0c0b09 30%,#1c1a14 50%,#0c0b09 70%);background-size:250% 100%;animation:shimmer 1.6s linear infinite}
+.wait{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--muted);font-size:15px;line-height:1.5;text-align:center;padding:20px 12%;white-space:pre-line;background:linear-gradient(100deg,#0c0b09 30%,#1c1a14 50%,#0c0b09 70%);background-size:250% 100%;animation:shimmer 1.6s linear infinite}
 .wait.idle{animation:none;background:#0c0b09}
 .wait .spin{width:30px;height:30px;border:3px solid #3a372d;border-top-color:var(--gold);border-radius:50%;animation:spin .9s linear infinite}
 .wait.idle .spin{display:none}
@@ -183,7 +183,7 @@ h1{margin:12px 0 10px;font-family:'Space Grotesk',sans-serif;font-weight:700;fon
       }
       busy = false;
     }).catch(function (e) {
-      stopStatus(); waitState('Vectorizing failed.', false);
+      stopStatus(); waitState(e.message || 'Vectorizing failed.', false);
       busy = false; $('#make').disabled = false; showError(e.message);
     });
   }

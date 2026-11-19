@@ -70,21 +70,38 @@ os.environ.setdefault("LINEART_ONNX_UPSCALER", _upscaler())
 import lineart_assemble as la                         # noqa: E402  (needs the settings above)
 from lineart_layers import Params                     # noqa: E402
 
-LAST_UPSCALE = [""]                                   # which upscaler the last build used, for the info line
+LAST_UPSCALE = [""]
+
+
+class UpscaleUnavailable(Exception):
+    """Neither the GPU nor the processor could enlarge the picture."""
+
+
+UPSCALE_HELP = ("This picture is small and has to be enlarged x4 before tracing, but enlarging is not available "
+                "right now (the free GPU quota is used up and the processor could not do it). You can enlarge it "
+                "x4 yourself, for example with Upscayl (free), and upload the enlarged picture: from 2048 px on the "
+                "long side no enlarging is needed.")                                   # which upscaler the last build used, for the info line
 
 try:                                                  # x4 upscale on the GPU; the engine calls it in place of ONNX
     import gpu_upscale
 
     def _gpu_enlarge(bgr, up):
+        run = CURRENT_RUN[0] if "CURRENT_RUN" in globals() else None
         try:
             big = gpu_upscale.upscale_x4(bgr)
             LAST_UPSCALE[0] = gpu_upscale.NAME
-        except Exception as e:                        # GPU quota used up, card busy...: the CPU path takes over
-            # GPU quota used up or card busy: the heavy model on the CPU takes minutes, so the engine's fast
-            # Lanczos enlargement is used instead (returning None makes the engine fall back to it)
-            print("GPU upscale failed, using Lanczos:", e)
-            LAST_UPSCALE[0] = "Lanczos, GPU quota used up"
-            return None, "GPU quota used up"
+        except Exception as e:                        # GPU quota used up or card busy: the same model on the CPU
+            print("GPU upscale failed, using the CPU:", e)
+            if run is not None:
+                run["stage"] = ("The free GPU quota is used up, so the picture is enlarged on the processor.\n"
+                                "This takes a few minutes.")
+                run["notice"] = "GPU quota used up: enlarged on the processor"
+            try:
+                big = gpu_upscale.upscale_x4_cpu(bgr)
+                LAST_UPSCALE[0] = "digital-art-4x on the processor, GPU quota used up"
+            except Exception as e2:
+                print("CPU upscale failed:", e2)
+                raise UpscaleUnavailable() from e2
         if up != 4:
             import cv2
             h, w = bgr.shape[:2]
@@ -190,6 +207,9 @@ def api_convert(run_id: str = Form(...)):
         CURRENT_RUN[0] = run
         try:
             res = la.assemble_file(run["path"], Params(), style="auto", progress=step)
+        except UpscaleUnavailable:
+            run["stage"] = ""
+            raise HTTPException(503, UPSCALE_HELP)
         except Exception as e:
             run["stage"] = ""
             raise HTTPException(500, f"Tracing failed: {type(e).__name__}")
